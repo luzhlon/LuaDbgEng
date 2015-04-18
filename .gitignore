@@ -1,0 +1,7 @@
+*.sdf
+*.pdb
+*.obj
+*.log
+*.tlog
+*.idb
+*.filters
