@@ -3,6 +3,7 @@
 
 #include "dbgeng.h"
 class LuaAPI;
+class LuaCallback;
 
 class LuaEventCallback : public IDebugEventCallbacks
 {
@@ -64,11 +65,9 @@ public:
 		IN ULONG64  StartOffset );
 
 private:
-	LuaAPI *m_lua;
-	int     m_RefCallback;
-	int     m_nArgs;
+	LuaCallback *m_lua;
 
-	void    InitCallback(const char *);
+	int     InitCallback(const char *);
 	HRESULT BeginCallback();
 };
 
@@ -90,8 +89,7 @@ public:
 	virtual HRESULT _stdcall EndInput();
 
 private:
-	LuaAPI *m_lua;
-	int     m_RefCallback;
+	LuaCallback *m_lua;
 };
 
 class LuaOutputCallback : public IDebugOutputCallbacks
@@ -122,8 +120,7 @@ public:
 	virtual HRESULT _stdcall Output(IN ULONG Mask, IN PCSTR Text);
 	
 private:
-	LuaAPI *m_lua;
-	int     m_RefCallback;
+	LuaCallback *m_lua;
 };
 
 #endif

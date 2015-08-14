@@ -6,65 +6,32 @@
 LuaEventCallback::LuaEventCallback(LuaAPI *lua)
 {
 	lua->checktypeL(1, LUA_TTABLE);
-
-	m_lua = lua->NewCallback();
-	m_RefCallback = lua->RegGetRef();//将用于回调的lua_State放到C注册表中，防止被回收
-	lua->pushvalue(1);//回调表
-	LuaAPI::xmove(lua, m_lua);//将回调表放到回调线程栈中的第一个位置中
-
+	m_lua = lua->NewCallback(1);
 	lua->NewUserPointer(this, str::utLuaEventCallback);
 }
 
 LuaEventCallback::~LuaEventCallback()
 {
-	m_lua->RegFreeRef(m_RefCallback);
 	delete m_lua;
-}
-
-HRESULT LuaEventCallback::BeginCallback()
-{
-	HRESULT ret = DEBUG_STATUS_NO_CHANGE;
-	if (m_nArgs < 0) return ret;//Init failue
-
-	m_nArgs = m_lua->gettop() - m_nArgs;
-	if (m_lua->pcall(m_nArgs, 1, 0))
-	{
-		printf("[CALLBACK ERROR] %s\n", m_lua->tostring(-1));
-	}
-	else
-		return m_lua->isnil(-1) ? ret : m_lua->tointeger(-1);
-
-	return ret;
-}
-
-void LuaEventCallback::InitCallback(const char *type)
-{
-	m_lua->settop(1);//第一个位置是回调表
-	if (!m_lua->getfield(1, type))//Init failue
-	{
-		m_nArgs = -1;
-		return;
-	}
-	m_nArgs = m_lua->gettop();
 }
 
 HRESULT LuaInputCallback::StartInput(IN ULONG BuffSize)
 {
-	m_lua->settop(1);//栈底是回调函数
+	if (!m_lua->InitCallback()) return 0;
 	m_lua->pushvalue(1);
 	m_lua->Push(true);
 	m_lua->pushinteger(BuffSize);
-	m_lua->pcall(2, 1, 0);
-	return m_lua->isnil(-1) ? DEBUG_STATUS_NO_CHANGE : m_lua->tointeger(-1);
+	m_lua->BeginCallback(0, 0);
+	return 0;
 }
 
 HRESULT LuaInputCallback::EndInput()
 {
-	m_lua->settop(1);//栈底是回调函数
+	if (!m_lua->InitCallback()) return 0;
 	m_lua->pushvalue(1);
 	m_lua->Push(false);
-	m_lua->pcall(1, 1, 0);
-	return m_lua->isnil(-1) ? DEBUG_STATUS_NO_CHANGE : m_lua->tointeger(-1);
+	m_lua->BeginCallback(0, 0);
+	return 0;
 }
 
 HRESULT LuaOutputCallback::Output(IN ULONG Mask, IN PCSTR Text)
@@ -104,15 +71,11 @@ HRESULT LuaOutputCallback::Output(IN ULONG Mask, IN PCSTR Text)
 		type = "DEBUGGEE_PROMPT";
 		break;
 	}
-	m_lua->settop(1);//栈底是回调函数
-	m_lua->pushvalue(1);
+	if (!m_lua->InitCallback()) return 0;
 	m_lua->Push(type);
 	m_lua->Push(Text);
-	if (m_lua->pcall(2, 0, 0))
-	{
-		printf("[Callback error] %s", m_lua->tostring(-1));
-		m_lua->pop(1);
-	}
+	if( !m_lua->BeginCallback(0))
+		printf("[ERROR:Output] %s", m_lua->tostring(-1));
 	return 0;
 }
 
@@ -135,9 +98,24 @@ HRESULT LuaEventCallback::GetInterestMask(PULONG Mask)
 	return S_OK;
 }
 
+int LuaEventCallback::InitCallback(const char *s)
+{
+	return m_lua->InitCallback(s);
+}
+
+HRESULT LuaEventCallback::BeginCallback()
+{
+	if (!m_lua->BeginCallback(1))
+	{
+		printf("[ERROR:]\n\t", m_lua->tostring(-1));
+		return DEBUG_STATUS_NO_CHANGE;
+	}
+	return m_lua->tointeger(-1);
+}
+
 HRESULT LuaEventCallback::Breakpoint(IDebugBreakpoint *bp)
 {
-	InitCallback("BreakPoint");
+	InitCallback("Breakpoint");
 	NewLuaBreakpoint(m_lua->GetState(), bp);
 	return BeginCallback();
 }
@@ -160,7 +138,7 @@ HRESULT LuaEventCallback::ChangeEngineState(ULONG Flags, ULONG64 Argument)
 
 HRESULT LuaEventCallback::Exception(PEXCEPTION_RECORD64 Exception, ULONG FirstChance)
 {
-	InitCallback("Exception"); if (m_nArgs < 0) return DEBUG_STATUS_NO_CHANGE;
+	if(!InitCallback("Exception")) return DEBUG_STATUS_NO_CHANGE;
 
 	m_lua->newtable();
 	m_lua->pushinteger(Exception->ExceptionCode);
@@ -249,8 +227,7 @@ HRESULT LuaEventCallback::LoadModule(
 	IN ULONG  CheckSum,
 	IN ULONG  TimeDateStamp)
 {
-	InitCallback("LoadModule");
-	if (m_nArgs < 0) return DEBUG_STATUS_NO_CHANGE;
+	if(!InitCallback("LoadModule")) return DEBUG_STATUS_NO_CHANGE;
 
 	m_lua->Push((lua_Integer)ImageFileHandle);
 	m_lua->Push((lua_Integer)BaseOffset);
@@ -276,8 +253,7 @@ HRESULT LuaEventCallback::CreateProcess(
 		IN ULONG64  ThreadDataOffset,
 		IN ULONG64  StartOffset )
 {
-	InitCallback("CreateProcess");
-	if (m_nArgs < 0) return DEBUG_STATUS_NO_CHANGE;
+	if(!InitCallback("CreateProcess")) return DEBUG_STATUS_NO_CHANGE;
 
 	m_lua->Push((lua_Integer)ImageFileHandle);
 	m_lua->Push((lua_Integer)Handle);
@@ -297,33 +273,23 @@ HRESULT LuaEventCallback::CreateProcess(
 LuaOutputCallback::LuaOutputCallback(LuaAPI *lua)
 {
 	lua->checktypeL(1, LUA_TFUNCTION);
-
-	m_lua = lua->NewCallback();
-	m_RefCallback = lua->RegGetRef();//将用于回调的lua_State放到C注册表中，防止被回收
-	lua->pushvalue(1);//回调函数
-	LuaAPI::xmove(lua, m_lua);//将回调函数放到回调线程栈中的第一个位置中
-
+	m_lua = lua->NewCallback(1);
 	lua->NewUserPointer(this, str::utLuaOutputCallback);
 }
 
 LuaOutputCallback::~LuaOutputCallback()
 {
-	m_lua->RegFreeRef(m_RefCallback);
+	delete m_lua;
 }
 
 LuaInputCallback::LuaInputCallback(LuaAPI *lua)
 {
 	lua->checktypeL(1, LUA_TFUNCTION);
-
-	m_lua = lua->NewCallback();
-	m_RefCallback = lua->RegGetRef();//将用于回调的lua_State放到C注册表中，防止被回收
-	lua->pushvalue(1);//回调函数
-	LuaAPI::xmove(lua, m_lua);//将回调函数放到回调线程栈中的第一个位置中
-
+	m_lua = lua->NewCallback(1);
 	lua->NewUserPointer(this, str::utLuaInputCallback);
 }
 
 LuaInputCallback::~LuaInputCallback()
 {
-	m_lua->RegFreeRef(m_RefCallback);
+	delete m_lua;
 }

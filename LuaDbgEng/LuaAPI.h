@@ -235,7 +235,8 @@ public:
 	LuaCallback(lua_State *L);
 	~LuaCallback();
 
-	int InitCallback(char *nf = NULL);
+	int InitCallback(const char *nf = NULL);
+	int InitCallback(int i);
 	int BeginCallback(int nr, int msgh = 0);
 
 private:

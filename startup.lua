@@ -1,7 +1,27 @@
 ----------------------------------------------------------------------
 ----------------------Test code---------------------------------------
 ----------------------------------------------------------------------
-d = _D
+
+local d = _D
+local Ui = NonGUI
+
+d.OnLoadUI = function()
+    local text = Ui.Text{
+        OnEnter = function(text)
+            local ok, err = pcall(load(text:value()))
+            if not ok then print('[ERROR:OnEnter]', err) end
+            text:value('')
+            return true
+        end,
+        Style = Ui.wxTE_MULTILINE,
+        Width = 100, Height = 100
+    } 
+    Ui.AddPane(text, Ui.wxBOTTOM, 'Perform Lua scripts')
+end
+
+d.OnWaitEvent = function()
+    d.Client:CreateProcess([[D:\BaiDuYun\Projects\VC6\Ñ¹Ëõ\Debug\Ñ¹Ëõ.exe]])
+end
 
 d.SetInputCallback(function(isStart, buffsize)
     print '----------------INPUT----------------'  
@@ -11,7 +31,16 @@ d.SetOutputCallback(function(outp, text)
     io.write(text)
 end)
 
-d.Client:CreateProcess([[D:\BaiDuYun\Projects\VC6\Ñ¹Ëõ\Debug\Ñ¹Ëõ.exe]])
+d.SetEventCallback {
+    Breakpoint = function(bp)
+        print ('Breakpoint', bp)
+    end,
+    CreateThread = function(...)
+        print('CreateThread', ...)
+    end
+}
+
+return d
 
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------

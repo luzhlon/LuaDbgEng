@@ -5,7 +5,6 @@
 -----------------------------------------------------------------------------
 package.cpath = package.cpath..';E:/GitHub/LuaDbgEng/Debug/?.dll;./?.lua'
 --
-local _U
 local Eng = require 'LuaDbgEng' --Core lib
 local Ui = NonGUI
 setmetatable(Ui, { __index = Ui.CONSTANT })
@@ -40,14 +39,6 @@ assert(Dbg.Client and Dbg.Ctrl and Dbg.Sym
     and Dbg.Reg and Dbg.DatSpc and Dbg.SysObj)
 
 --Some function in LuaDbgEng
-local function getuservalue(ud)
-    assert(type(ud)=="userdata", "getuservalue arg #1 must userdata")
-    return _U[ud]
-end
-local function setuservalue(ud, value)
-    assert(type(ud)=="userdata", "setuservalue arg #1 must userdata")
-    _U[ud] = value
-end
 setmetatable(Dbg, {__index = function(t, k)
     local v = rawget(Dbg, k) if v then return v end
     v = LuaDbgEng[k] if v then return v end
@@ -81,33 +72,36 @@ OnBreak[1] = function()
     io.read()
 end
 
-local function BeginWaitEvent()
-local nBreak = 0
---dofile 'startup.lua'
-dofile 'E:/GitHub/LuaDbgEng/startup.lua'
-while Dbg.Ctrl:WaitForEvent() do
-    nBreak = nBreak + 1
-    local func = OnBreak[nBreak]
-    if func then pcall(func) end
-    Dbg.Ctrl:OutputCurrentState()
-    --print('Waited for event:',  Eng.GetLastError())
-    repeat 
-        print(Dbg.GetPromptText())
-        local cmd = io.read()
-        Dbg.Ctrl:Execute(cmd)
-        cmd = ''
-    until Dbg.GetExecutionStatus() ~= Const.DEBUG_STATUS_BREAK
-    print(Eng.GetLastError())
-end end
+local function Callback(func, errmsg)
+    if type(func)=='function' then
+        local ok, ret, err = pcall(func)
+        if ok then return ret end 
+        print(errmsg, ret, err)
+    end
+end
 
-local text = Ui.NewText{
-    OnEnter = function(text)
-        load(text:gettext())()
-        text:print 'ddddd'
-    end,
-    Style = Ui.wxTE_MULTILINE,
-    Width = 100, Height = 100 } 
-Ui.AddPane(text, Ui.wxBOTTOM)
+local rc = 'E:/GitHub/LuaDbgEng/startup.lua'
+print(type(dofile(rc)))
+
+Callback(Dbg.OnLoadUI, '[ERROR:OnLoadUI]\n')
+
+local function BeginWaitEvent()
+    local nBreak = 0
+    Callback(Dbg.OnWaitEvent, '[ERROR:OnWaitEvent]\n')--
+    while Dbg.Ctrl:WaitForEvent() do
+        nBreak = nBreak + 1
+        Callback(OnBreak[nBreak])--
+        Dbg.Ctrl:OutputCurrentState()
+        --print('Waited for event:',  Eng.GetLastError())
+        repeat 
+            print(Dbg.GetPromptText())
+            local cmd = io.read()
+            Dbg.Ctrl:Execute(cmd)
+            cmd = ''
+        until Dbg.GetExecutionStatus() ~= Const.DEBUG_STATUS_BREAK
+        print(Eng.GetLastError())
+    end
+end
 
 ---[[
 local wait = systhread.create(BeginWaitEvent)

@@ -152,7 +152,7 @@ void LuaAPI::CheckFieldType(const char *field, int typ, int t)
 	pop(1);
 }
 
-bool LuaAPI::IsFieldType(const char *field, int typ, int t = -1)
+bool LuaAPI::IsFieldType(const char *field, int typ, int t)
 {
 	getfield(t, field);
 	bool ret = (typ == type(-1));
@@ -162,10 +162,10 @@ bool LuaAPI::IsFieldType(const char *field, int typ, int t = -1)
 
 LuaCallback *LuaAPI::NewCallback(int idcall)//0,+1
 {
-	LuaCallback *l = new LuaCallback(newthread());
 	int typ = type(idcall);
 	if (!(typ == LUA_TFUNCTION || typ == LUA_TTABLE))
 		return NULL;
+	LuaCallback *l = new LuaCallback(newthread());
 	pushvalue(idcall);
 	xmove(this, l, 1);//回调函数或表
 	return l;
@@ -182,7 +182,7 @@ LuaCallback::~LuaCallback()
 	RegFreeRef(m_ref);
 }
 
-int LuaCallback::InitCallback(char *nf)
+int LuaCallback::InitCallback(const char *nf)
 {
 	settop(1);
 	if (nf)
@@ -196,6 +196,15 @@ int LuaCallback::InitCallback(char *nf)
 		if (!isfunction(1)) return 0;
 		pushvalue(1);
 	}
+	m_top = gettop();
+	return 1;
+}
+
+int LuaCallback::InitCallback(int i)
+{
+	settop(1);
+	if (!istable(1)) return 0;
+	geti(1, i);
 	m_top = gettop();
 	return 1;
 }
